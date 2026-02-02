@@ -11,6 +11,7 @@ inc = include_directories('.')
 shared_library('asus_armoury',
   [
     'asus_plugin.cpp',
+    'backend/config.cpp',
     'backend/sysfs_writer.cpp',
     'backend/modes.cpp',
     'backend/core.cpp',

@@ -1,5 +1,6 @@
 #include "fan_control.h"
 #include "sysfs_writer.h"
+#include "config.h"
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -48,6 +49,17 @@ namespace AsusFanControl {
         return !g_paths.pwm_enable.empty();
     }
 
+
+
+    void init() {
+         scan();
+         int manual = AsusConfig::get_int(ConfigCategory::Power, "Fan", "ManualMode", 0);
+         if (manual == 1) set_manual_mode(true);
+         
+         int speed = AsusConfig::get_int(ConfigCategory::Power, "Fan", "Speed", -1);
+         if (speed != -1 && manual == 1) set_fan_speed(speed);
+    }
+
     bool set_manual_mode(bool enable) {
         scan();
         if (g_paths.pwm_enable.empty()) return false;
@@ -59,6 +71,7 @@ namespace AsusFanControl {
         // debug block for locked bios
         if (fs::exists("/tmp/kerneldrive_debug_fan")) {
             std::cout << "[AsusFanControl] DEBUG OVERRIDE: Simulating successful mode switch." << std::endl;
+             AsusConfig::set_int(ConfigCategory::Power, "Fan", "ManualMode", enable ? 1 : 0);
             return true;
         }
 
@@ -74,6 +87,8 @@ namespace AsusFanControl {
             std::cerr << "[AsusFanControl] BIOS rejected fan mode change! Wanted " << expected << " got " << current << std::endl;
             return false;
         }
+        
+        AsusConfig::set_int(ConfigCategory::Power, "Fan", "ManualMode", enable ? 1 : 0);
         return true;
     }
 
@@ -137,6 +152,7 @@ namespace AsusFanControl {
         if (pwm > 255) pwm = 255;
         
         SysfsWriter::write(g_paths.pwm_control, std::to_string(pwm));
+        AsusConfig::set_int(ConfigCategory::Power, "Fan", "Speed", percent);
     }
 
     int get_fan_speed() {

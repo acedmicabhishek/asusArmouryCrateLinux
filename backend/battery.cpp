@@ -1,7 +1,9 @@
 #include "battery.h"
 #include "sysfs_writer.h"
+#include "config.h"
 #include <filesystem>
 #include <string>
+
 
 namespace AsusBattery {
     static std::string find_battery_path() {
@@ -22,6 +24,12 @@ namespace AsusBattery {
         return !find_battery_path().empty();
     }
 
+
+    void init() {
+        int limit = AsusConfig::get_int(ConfigCategory::Power, "Battery", "ChargeLimit", -1);
+        if (limit != -1) set_charge_limit(limit);
+    }
+
     bool set_charge_limit(int limit) {
         if (limit < 40) limit = 40;
         if (limit > 100) limit = 100;
@@ -29,9 +37,11 @@ namespace AsusBattery {
         std::string path = find_battery_path();
         if (path.empty()) return false;
         
-        std::string path_attr = path + "/charge_control_end_threshold";
-        
-        return SysfsWriter::write(path, std::to_string(limit));
+        bool res = SysfsWriter::write(path, std::to_string(limit));
+        if (res) {
+            AsusConfig::set_int(ConfigCategory::Power, "Battery", "ChargeLimit", limit);
+        }
+        return res;
     }
 
     int get_charge_limit() {

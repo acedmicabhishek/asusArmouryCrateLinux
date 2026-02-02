@@ -8,6 +8,7 @@ namespace AsusFanControl {
         int pwm;
     };
 
+    void init();
     bool is_supported();
     bool set_manual_mode(bool enable);
     bool get_manual_mode();

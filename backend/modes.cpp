@@ -1,7 +1,9 @@
 #include "modes.h"
 #include "sysfs_writer.h"
+#include "config.h"
 #include <filesystem>
 #include <string>
+
 
 static const std::string THROTTLE_POLICY_PATH = "/sys/devices/platform/asus-nb-wmi/throttle_thermal_policy";
 
@@ -10,9 +12,19 @@ namespace AsusModes {
         return std::filesystem::exists(THROTTLE_POLICY_PATH);
     }
 
+
     bool set_mode(AsusMode mode) {
         if (mode == AsusMode::Unknown) return false;
-        return SysfsWriter::write(THROTTLE_POLICY_PATH, std::to_string(static_cast<int>(mode)));
+        bool res = SysfsWriter::write(THROTTLE_POLICY_PATH, std::to_string(static_cast<int>(mode)));
+        if (res) {
+             AsusConfig::set_int(ConfigCategory::Power, "Power", "Mode", static_cast<int>(mode));
+        }
+        return res;
+    }
+
+    void init() {
+         int m = AsusConfig::get_int(ConfigCategory::Power, "Power", "Mode", -1);
+         if (m != -1) set_mode(static_cast<AsusMode>(m));
     }
 
     AsusMode get_mode() {

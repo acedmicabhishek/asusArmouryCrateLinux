@@ -1,5 +1,6 @@
 #include "display.h"
 #include "sysfs_writer.h"
+#include "config.h"
 #include <filesystem>
 #include <iostream>
 #include <fstream>
@@ -28,13 +29,28 @@ namespace AsusDisplay {
         return result;
     }
 
+
+
+    void init() {
+         bool od = AsusConfig::get_bool(ConfigCategory::Extra, "Display", "Overdrive", false);
+         if (od) set_panel_overdrive(true);
+
+         bool ml = AsusConfig::get_bool(ConfigCategory::Extra, "Display", "MiniLED", false);
+         if (ml) set_miniled_mode(true);
+         
+         int hz = AsusConfig::get_int(ConfigCategory::Extra, "Display", "RefreshRate", -1);
+         if (hz > 0) set_refresh_rate(hz);
+    }
+
     bool is_overdrive_supported() {
         return std::filesystem::exists(PANEL_OD_PATH);
     }
 
     bool set_panel_overdrive(bool enable) {
         if (!is_overdrive_supported()) return false;
-        return SysfsWriter::write(PANEL_OD_PATH, enable ? "1" : "0");
+        bool res = SysfsWriter::write(PANEL_OD_PATH, enable ? "1" : "0");
+        if (res) AsusConfig::set_bool(ConfigCategory::Extra, "Display", "Overdrive", enable);
+        return res;
     }
 
     bool get_panel_overdrive() {
@@ -49,7 +65,9 @@ namespace AsusDisplay {
 
     bool set_miniled_mode(bool enable) {
         if (!is_miniled_supported()) return false;
-        return SysfsWriter::write(MINI_LED_PATH, enable ? "1" : "0");
+        bool res = SysfsWriter::write(MINI_LED_PATH, enable ? "1" : "0");
+        if (res) AsusConfig::set_bool(ConfigCategory::Extra, "Display", "MiniLED", enable);
+        return res;
     }
 
     bool get_miniled_mode() {
@@ -92,6 +110,7 @@ namespace AsusDisplay {
         std::cout << "[AsusDisplay] Setting refresh rate: " << hz << "Hz" << std::endl;
         std::string cmd = "xrandr -r " + std::to_string(hz);
         exec(cmd.c_str());
+        AsusConfig::set_int(ConfigCategory::Extra, "Display", "RefreshRate", hz);
         return true;
     }
 

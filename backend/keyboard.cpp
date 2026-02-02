@@ -1,4 +1,5 @@
 #include "keyboard.h"
+#include "config.h"
 #include "sysfs_writer.h"
 #include <filesystem>
 #include <vector>
@@ -11,10 +12,11 @@
 
 namespace AsusKeyboard {
     namespace fs = std::filesystem;
-
     static const std::string BASE_PATH = "/sys/class/leds/asus::kbd_backlight";
     static int g_max_brightness = 3; 
     static Color g_current_color = {255, 0, 0};
+    static RgbMode g_current_mode = RgbMode::Static;
+    static int g_current_speed = 1;
 
     void init() {
         if (fs::exists(BASE_PATH + "/max_brightness")) {
@@ -23,6 +25,19 @@ namespace AsusKeyboard {
                  try { g_max_brightness = std::stoi(*val); } catch(...) {}
              }
         }
+        
+        // Load persist
+        g_current_mode = static_cast<RgbMode>(AsusConfig::get_int(ConfigCategory::RGB, "Keyboard", "RgbMode", (int)RgbMode::Static));
+        g_current_speed = AsusConfig::get_int(ConfigCategory::RGB, "Keyboard", "RgbSpeed", 1);
+        g_current_color.r = AsusConfig::get_int(ConfigCategory::RGB, "Keyboard", "ColorR", 255);
+        g_current_color.g = AsusConfig::get_int(ConfigCategory::RGB, "Keyboard", "ColorG", 0);
+        g_current_color.b = AsusConfig::get_int(ConfigCategory::RGB, "Keyboard", "ColorB", 0);
+        
+        // Restore Hardware
+        apply_rgb(g_current_mode, g_current_color, g_current_speed);
+        
+        int bright = AsusConfig::get_int(ConfigCategory::RGB, "Keyboard", "Brightness", -1);
+        if (bright != -1) set_brightness(bright);
     }
 
     int get_brightness() {
@@ -37,6 +52,7 @@ namespace AsusKeyboard {
         if (val < 0) val = 0;
         if (val > g_max_brightness) val = g_max_brightness;
         SysfsWriter::write(BASE_PATH + "/brightness", std::to_string(val));
+        AsusConfig::set_int(ConfigCategory::RGB, "Keyboard", "Brightness", val);
     }
 
     int get_max_brightness() {
@@ -60,9 +76,6 @@ namespace AsusKeyboard {
         SysfsWriter::write(BASE_PATH + "/" + attr, data);
     }
 
-    static RgbMode g_current_mode = RgbMode::Static;
-    static int g_current_speed = 1;
-
     void apply_rgb(RgbMode mode, Color color, int speed) {
         // Packet Structure
         // [Cmd, Mode, R, G, B, Speed]
@@ -82,6 +95,14 @@ namespace AsusKeyboard {
         g_current_color = color;
         g_current_mode = mode;
         g_current_speed = speed;
+        
+        // Save
+        AsusConfig::set_int(ConfigCategory::RGB, "Keyboard", "RgbMode", (int)mode);
+        AsusConfig::set_int(ConfigCategory::RGB, "Keyboard", "RgbSpeed", speed);
+        AsusConfig::set_int(ConfigCategory::RGB, "Keyboard", "ColorR", color.r);
+        AsusConfig::set_int(ConfigCategory::RGB, "Keyboard", "ColorG", color.g);
+        AsusConfig::set_int(ConfigCategory::RGB, "Keyboard", "ColorG", color.g);
+        AsusConfig::set_int(ConfigCategory::RGB, "Keyboard", "ColorB", color.b);
     }
 
     void set_rgb_mode(RgbMode mode, int speed) {

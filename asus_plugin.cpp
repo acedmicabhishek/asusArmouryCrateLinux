@@ -18,6 +18,7 @@
 #include <gtk/gtk.h>
 #include <adwaita.h>
 #include <iostream>
+#include "backend/config.h"
 
 class AsusArmouryPlugin : public KdPlugin {
 public:
@@ -33,10 +34,16 @@ public:
         return AsusModes::is_supported() || AsusCore::is_supported() || AsusBattery::is_supported();
     }
 
+
     GtkWidget* create_config_widget() override {
+        AsusConfig::init();
         AsusMonitor::init();
         AsusBrightness::init();
         AsusKeyboard::init();
+        AsusModes::init();
+        AsusBattery::init();
+        AsusFanControl::init();
+        AsusDisplay::init();
         
         GtkWidget* page = adw_preferences_page_new();
         GtkWidget* group = adw_preferences_group_new();
