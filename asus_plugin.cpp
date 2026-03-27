@@ -14,6 +14,7 @@
 #include "plugin_interface.h"
 #include "ui/notification.h"
 #include <adwaita.h>
+#include <filesystem>
 #include <gtk/gtk.h>
 #include <iostream>
 #include <thread>
@@ -603,7 +604,6 @@ public:
         adw_preferences_group_add(ADW_PREFERENCES_GROUP(kbd_group), picker_row);
       }
     }
-
     struct FanData {
       GtkWidget *cpu;
       GtkWidget *gpu;
@@ -611,12 +611,15 @@ public:
       GtkWidget *switcher_stack;
       GtkWidget *power_row;
       GtkWidget *status_row;
+      GtkWidget *install_btn;
+      GtkWidget *install_row;
       decltype(update_status_text) update_fn;
       bool last_ac;
     };
     FanData *fdata = new FanData{
         cpu_row, gpu_row,    adv_switch,         nullptr,
-        nullptr, status_row, update_status_text, AsusBattery::is_on_ac()};
+        nullptr, status_row, nullptr,            nullptr,
+        update_status_text,  AsusBattery::is_on_ac()};
 
     guint timeout_id = g_timeout_add(
         2000,
@@ -694,6 +697,25 @@ public:
                          std::to_string(gm.power_limit_w) + "W";
           }
           adw_action_row_set_subtitle(ADW_ACTION_ROW(d->gpu), gpu_sub.c_str());
+
+          if (d->install_btn) {
+            bool installed = std::filesystem::exists("/usr/local/bin/AAC");
+            if (installed) {
+              adw_preferences_row_set_title(ADW_PREFERENCES_ROW(d->install_row),
+                                            "AAC CLI Tool (Installed)");
+              gtk_button_set_label(GTK_BUTTON(d->install_btn),
+                                   "Uninstall AAC Tool");
+              gtk_widget_remove_css_class(d->install_btn, "suggested-action");
+              gtk_widget_add_css_class(d->install_btn, "destructive-action");
+            } else {
+              adw_preferences_row_set_title(ADW_PREFERENCES_ROW(d->install_row),
+                                            "AAC CLI Tool");
+              gtk_button_set_label(GTK_BUTTON(d->install_btn),
+                                   "Install AAC Tool");
+              gtk_widget_remove_css_class(d->install_btn, "destructive-action");
+              gtk_widget_add_css_class(d->install_btn, "suggested-action");
+            }
+          }
 
           return G_SOURCE_CONTINUE;
         },
@@ -961,47 +983,83 @@ public:
 
     g_signal_connect(
         download_btn, "clicked", G_CALLBACK(+[](GtkButton *btn, gpointer) {
-          auto handle = AsusNotification::show_loading(
-              GTK_WIDGET(btn), "Building & Installing AAC Tool...");
+          bool installed = std::filesystem::exists("/usr/local/bin/AAC");
 
-          std::thread([handle]() {
-            std::string base = AAC_SOURCE_DIR;
-             std::string cmd = "pkexec sh -c \"cd " + base +
-                               " && g++ -O3 -std=c++23 aac.cpp "
-                               "backend/config.cpp backend/sysfs_writer.cpp "
-                               "backend/modes.cpp backend/battery.cpp "
-                               "backend/gpu.cpp backend/gpu_mux.cpp "
-                               "backend/keyboard.cpp -I. "
-                               "$(pkg-config --cflags --libs glib-2.0) -o "
-                               "/usr/local/bin/AAC\"";
+          if (installed) {
+            auto handle = AsusNotification::show_loading(
+                GTK_WIDGET(btn), "Uninstalling AAC Tool...");
 
-             int ret = system(cmd.c_str());
+            std::thread([handle]() {
+              const char *cmd = "pkexec rm -f /usr/local/bin/AAC";
+              int ret = system(cmd);
 
-            g_idle_add(
-                +[](gpointer data) -> gboolean {
-                  auto h = (AsusNotification::LoadingHandle *)data;
-                  h->close();
-                  return G_SOURCE_REMOVE;
-                },
-                handle);
-
-            if (ret == 0) {
               g_idle_add(
-                  +[](gpointer) -> gboolean {
-                    AsusNotification::show_toast(
-                        "AAC Tool installed to /usr/local/bin/AAC");
+                  +[](gpointer data) -> gboolean {
+                    auto h = (AsusNotification::LoadingHandle *)data;
+                    h->close();
                     return G_SOURCE_REMOVE;
                   },
-                  NULL);
-            } else {
+                  handle);
+
+              if (ret == 0) {
+                g_idle_add(
+                    +[](gpointer) -> gboolean {
+                      AsusNotification::show_toast("AAC Tool Uninstalled.");
+                      return G_SOURCE_REMOVE;
+                    },
+                    NULL);
+              } else {
+                g_idle_add(
+                    +[](gpointer) -> gboolean {
+                      AsusNotification::show_toast("Uninstallation failed.");
+                      return G_SOURCE_REMOVE;
+                    },
+                    NULL);
+              }
+            }).detach();
+          } else {
+            auto handle = AsusNotification::show_loading(
+                GTK_WIDGET(btn), "Building & Installing AAC Tool...");
+
+            std::thread([handle]() {
+              std::string base = AAC_SOURCE_DIR;
+              std::string cmd =
+                  "pkexec sh -c \"cd " + base + " && g++ -O3 -std=c++23 aac.cpp "
+                  "backend/config.cpp backend/sysfs_writer.cpp "
+                  "backend/modes.cpp backend/battery.cpp "
+                  "backend/gpu.cpp backend/gpu_mux.cpp "
+                  "backend/keyboard.cpp -I. "
+                  "$(pkg-config --cflags --libs glib-2.0) -o "
+                  "/usr/local/bin/AAC\"";
+
+              int ret = system(cmd.c_str());
+
               g_idle_add(
-                  +[](gpointer) -> gboolean {
-                    AsusNotification::show_toast("Installation failed.");
+                  +[](gpointer data) -> gboolean {
+                    auto h = (AsusNotification::LoadingHandle *)data;
+                    h->close();
                     return G_SOURCE_REMOVE;
                   },
-                  NULL);
-            }
-          }).detach();
+                  handle);
+
+              if (ret == 0) {
+                g_idle_add(
+                    +[](gpointer) -> gboolean {
+                      AsusNotification::show_toast(
+                          "AAC Tool installed to /usr/local/bin/AAC");
+                      return G_SOURCE_REMOVE;
+                    },
+                    NULL);
+              } else {
+                g_idle_add(
+                    +[](gpointer) -> gboolean {
+                      AsusNotification::show_toast("Installation failed.");
+                      return G_SOURCE_REMOVE;
+                    },
+                    NULL);
+              }
+            }).detach();
+          }
         }),
         NULL);
 
@@ -1010,6 +1068,8 @@ public:
 
     fdata->switcher_stack = switcher_stack;
     fdata->power_row = power_row;
+    fdata->install_btn = download_btn;
+    fdata->install_row = download_row;
 
     return page;
   }
