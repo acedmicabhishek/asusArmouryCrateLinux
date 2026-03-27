@@ -474,12 +474,25 @@ public:
             }
         }
 
-        struct FanData { GtkWidget* cpu; GtkWidget* gpu; GtkWidget* adv; };
-        FanData* fdata = new FanData{cpu_row, gpu_row, adv_switch};
+        struct FanData { 
+            GtkWidget* cpu; 
+            GtkWidget* gpu; 
+            GtkWidget* adv; 
+            GtkWidget* switcher_stack;
+            bool last_ac;
+        };
+        FanData* fdata = new FanData{cpu_row, gpu_row, adv_switch, nullptr, AsusBattery::is_on_ac()};
 
         guint timeout_id = g_timeout_add(2000, +[](gpointer user_data) -> gboolean {
             AsusModes::update_auto();
             FanData* d = static_cast<FanData*>(user_data);
+
+            bool current_ac = AsusBattery::is_on_ac();
+            if (current_ac != d->last_ac && d->switcher_stack) {
+                d->last_ac = current_ac;
+                gtk_stack_set_visible_child_name(GTK_STACK(d->switcher_stack), current_ac ? "ac" : "dc");
+            }
+
             if (!GTK_IS_WIDGET(d->cpu)) return G_SOURCE_CONTINUE;
             
             AsusCore::FanMetrics m = AsusCore::get_metrics();
@@ -704,6 +717,8 @@ public:
         }), idata, [](gpointer data, GClosure*) { delete static_cast<InfoData*>(data); }, (GConnectFlags)0);
         
         adw_preferences_group_add(ADW_PREFERENCES_GROUP(group), switcher_stack); 
+
+        fdata->switcher_stack = switcher_stack;
 
         return page;
     }
