@@ -478,6 +478,7 @@ public:
         FanData* fdata = new FanData{cpu_row, gpu_row, adv_switch};
 
         guint timeout_id = g_timeout_add(2000, +[](gpointer user_data) -> gboolean {
+            AsusModes::update_auto();
             FanData* d = static_cast<FanData*>(user_data);
             if (!GTK_IS_WIDGET(d->cpu)) return G_SOURCE_CONTINUE;
             

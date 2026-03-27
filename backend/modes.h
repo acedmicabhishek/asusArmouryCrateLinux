@@ -12,4 +12,5 @@ namespace AsusModes {
     bool set_mode(AsusMode mode);
     AsusMode get_mode();
     bool is_supported();
+    void update_auto();
 }

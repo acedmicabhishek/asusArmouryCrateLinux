@@ -2,6 +2,7 @@
 #include "sysfs_writer.h"
 #include "config.h"
 #include <filesystem>
+#include <fstream>
 #include <string>
 
 
@@ -24,6 +25,27 @@ namespace AsusBattery {
         return !find_battery_path().empty();
     }
 
+
+    bool is_on_ac() {
+        std::ifstream f("/sys/class/power_supply/ACAD/online");
+        if (!f.is_open()) {
+            for (const auto& entry : std::filesystem::directory_iterator("/sys/class/power_supply")) {
+                if (entry.path().filename().string().find("AC") != std::string::npos || 
+                    entry.path().filename().string().find("ADP") != std::string::npos) {
+                    std::ifstream f2(entry.path() / "online");
+                    if (f2.is_open()) {
+                        int online = 0;
+                        f2 >> online;
+                        return online == 1;
+                    }
+                }
+            }
+            return true; 
+        }
+        int online = 0;
+        f >> online;
+        return online == 1;
+    }
 
     void init() {
         int limit = AsusConfig::get_int(ConfigCategory::Power, "Battery", "ChargeLimit", -1);
