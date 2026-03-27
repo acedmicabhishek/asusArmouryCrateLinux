@@ -632,8 +632,8 @@ public:
             if (d->power_row) {
               adw_action_row_set_subtitle(ADW_ACTION_ROW(d->power_row),
                                           current_ac
-                                              ? "\u26A1 Charger (AC)"
-                                              : "\U0001F50B Battery (DC)");
+                                              ? "Charger (AC)"
+                                              : "Battery (DC)");
             }
             if (d->status_row) {
               adw_preferences_row_set_title(ADW_PREFERENCES_ROW(d->status_row),
@@ -841,8 +841,8 @@ public:
     adw_preferences_row_set_title(ADW_PREFERENCES_ROW(power_row),
                                   "Power Source");
     adw_action_row_set_subtitle(ADW_ACTION_ROW(power_row),
-                                AsusBattery::is_on_ac() ? "⚡ Charger (AC)"
-                                                        : "🔋 Battery (DC)");
+                                AsusBattery::is_on_ac() ? "Charger (AC)"
+                                                        : "Battery (DC)");
 
     GtkWidget *power_icon = gtk_image_new_from_icon_name(
         AsusBattery::is_on_ac() ? "battery-full-charging-symbolic"
