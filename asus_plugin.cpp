@@ -951,58 +951,59 @@ public:
     GtkWidget *download_row = adw_action_row_new();
     adw_preferences_row_set_title(ADW_PREFERENCES_ROW(download_row),
                                   "AAC CLI Tool");
-    adw_action_row_set_subtitle(ADW_ACTION_ROW(download_row),
-                                "Build and install the standalone tool to /usr/local/AAC.");
+    adw_action_row_set_subtitle(
+        ADW_ACTION_ROW(download_row),
+        "Build and install the standalone tool to /usr/local/AAC.");
 
     GtkWidget *download_btn = gtk_button_new_with_label("Install AAC Tool");
     gtk_widget_set_valign(download_btn, GTK_ALIGN_CENTER);
     gtk_widget_add_css_class(download_btn, "suggested-action");
 
-    g_signal_connect(download_btn, "clicked",
-                     G_CALLBACK(+[](GtkButton *btn, gpointer) {
-                       auto handle = AsusNotification::show_loading(
-                           GTK_WIDGET(btn), "Building & Installing AAC Tool...");
+    g_signal_connect(
+        download_btn, "clicked", G_CALLBACK(+[](GtkButton *btn, gpointer) {
+          auto handle = AsusNotification::show_loading(
+              GTK_WIDGET(btn), "Building & Installing AAC Tool...");
 
-                       std::thread([handle]() {
-                         const char *cmd =
-                             "pkexec g++ -O3 -std=c++23 aac.cpp "
-                             "backend/config.cpp backend/sysfs_writer.cpp "
-                             "backend/modes.cpp backend/battery.cpp "
-                             "backend/gpu.cpp backend/gpu_mux.cpp "
-                             "backend/keyboard.cpp -I. "
-                             "$(pkg-config --cflags --libs glib-2.0) -o "
-                             "/usr/local/AAC";
+          std::thread([handle]() {
+            std::string base = AAC_SOURCE_DIR;
+             std::string cmd = "pkexec sh -c \"cd " + base +
+                               " && g++ -O3 -std=c++23 aac.cpp "
+                               "backend/config.cpp backend/sysfs_writer.cpp "
+                               "backend/modes.cpp backend/battery.cpp "
+                               "backend/gpu.cpp backend/gpu_mux.cpp "
+                               "backend/keyboard.cpp -I. "
+                               "$(pkg-config --cflags --libs glib-2.0) -o "
+                               "/usr/local/AAC\"";
 
-                         int ret = system(cmd);
+             int ret = system(cmd.c_str());
 
-                         g_idle_add(
-                             +[](gpointer data) -> gboolean {
-                               auto h = (AsusNotification::LoadingHandle *)data;
-                               h->close();
-                               return G_SOURCE_REMOVE;
-                             },
-                             handle);
+            g_idle_add(
+                +[](gpointer data) -> gboolean {
+                  auto h = (AsusNotification::LoadingHandle *)data;
+                  h->close();
+                  return G_SOURCE_REMOVE;
+                },
+                handle);
 
-                         if (ret == 0) {
-                           g_idle_add(
-                               +[](gpointer) -> gboolean {
-                                 AsusNotification::show_toast(
-                                     "AAC Tool installed to /usr/local/AAC");
-                                 return G_SOURCE_REMOVE;
-                               },
-                               NULL);
-                         } else {
-                           g_idle_add(
-                               +[](gpointer) -> gboolean {
-                                 AsusNotification::show_toast(
-                                     "Installation failed.");
-                                 return G_SOURCE_REMOVE;
-                               },
-                               NULL);
-                         }
-                       }).detach();
-                     }),
-                     NULL);
+            if (ret == 0) {
+              g_idle_add(
+                  +[](gpointer) -> gboolean {
+                    AsusNotification::show_toast(
+                        "AAC Tool installed to /usr/local/AAC");
+                    return G_SOURCE_REMOVE;
+                  },
+                  NULL);
+            } else {
+              g_idle_add(
+                  +[](gpointer) -> gboolean {
+                    AsusNotification::show_toast("Installation failed.");
+                    return G_SOURCE_REMOVE;
+                  },
+                  NULL);
+            }
+          }).detach();
+        }),
+        NULL);
 
     adw_action_row_add_suffix(ADW_ACTION_ROW(download_row), download_btn);
     adw_preferences_group_add(ADW_PREFERENCES_GROUP(tools_group), download_row);

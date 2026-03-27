@@ -3,6 +3,8 @@ project('asus_armoury', ['cpp', 'c'],
   default_options: ['cpp_std=c++23']
 )
 
+add_project_arguments('-DAAC_SOURCE_DIR="' + meson.project_source_root() + '"', language: 'cpp')
+
 gtk_dep = dependency('gtk4')
 libadwaita_dep = dependency('libadwaita-1')
 glib_dep = dependency('glib-2.0')
