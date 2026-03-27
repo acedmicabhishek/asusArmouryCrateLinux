@@ -632,8 +632,8 @@ public:
             if (d->power_row) {
               adw_action_row_set_subtitle(ADW_ACTION_ROW(d->power_row),
                                           current_ac
-                                              ? "Charger (AC)"
-                                              : "Battery (DC)");
+                                              ? "\u26A1 Charger (AC)"
+                                              : "\U0001F50B Battery (DC)");
             }
             if (d->status_row) {
               adw_preferences_row_set_title(ADW_PREFERENCES_ROW(d->status_row),
