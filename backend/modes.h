@@ -10,7 +10,9 @@ enum class AsusMode {
 namespace AsusModes {
     void init();
     bool set_mode(AsusMode mode);
+    bool set_mode_for(AsusMode mode, bool ac);
     AsusMode get_mode();
+    AsusMode get_saved_mode(bool ac);
     bool is_supported();
     void update_auto();
 }

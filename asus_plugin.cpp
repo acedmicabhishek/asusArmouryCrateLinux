@@ -613,12 +613,28 @@ public:
 
         update_status_text(status_row, AsusModes::get_mode());
 
-        GtkWidget* box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-        gtk_widget_set_halign(box, GTK_ALIGN_CENTER);
-        gtk_widget_set_margin_top(box, 20);
-        gtk_widget_set_margin_bottom(box, 20);
+        // AC/DC Selector (Segmented Control)
+        GtkWidget* switcher_stack = gtk_stack_new();
+        GtkWidget* ac_view = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+        GtkWidget* dc_view = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+        
+        gtk_stack_add_titled(GTK_STACK(switcher_stack), ac_view, "ac", "Charger (AC)");
+        gtk_stack_add_titled(GTK_STACK(switcher_stack), dc_view, "dc", "Battery (DC)");
+        
+        GtkWidget* switcher = gtk_stack_switcher_new();
+        gtk_stack_switcher_set_stack(GTK_STACK_SWITCHER(switcher), GTK_STACK(switcher_stack));
+        gtk_widget_set_halign(switcher, GTK_ALIGN_CENTER);
+        gtk_widget_add_css_class(switcher, "pill");
 
-        auto create_mode_btn = [=](const char* label, const char* icon, AsusMode mode, const char* css_class) {
+        // Set initial selection to current state
+        gtk_stack_set_visible_child_name(GTK_STACK(switcher_stack), AsusBattery::is_on_ac() ? "ac" : "dc");
+
+        GtkWidget* buttons_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        gtk_widget_set_halign(buttons_box, GTK_ALIGN_CENTER);
+        gtk_widget_set_margin_top(buttons_box, 15);
+        gtk_widget_set_margin_bottom(buttons_box, 10);
+
+        auto create_mode_btn = [=](const char* label, const char* icon, AsusMode mode, const char* css_class, GtkWidget* st_stack) {
             GtkWidget* btn = gtk_button_new();
             GtkWidget* btn_content = adw_button_content_new();
             adw_button_content_set_label(ADW_BUTTON_CONTENT(btn_content), label);
@@ -630,36 +646,32 @@ public:
             struct CallbackData {
                 AsusMode mode;
                 GtkWidget* row;
+                GtkWidget* stack;
+                decltype(update_status_text) update_fn;
             };
-            CallbackData* data = new CallbackData{mode, status_row};
+            CallbackData* data = new CallbackData{mode, status_row, st_stack, update_status_text};
 
             auto cb = +[](GtkButton* btn, gpointer user_data) {
                 CallbackData* d = static_cast<CallbackData*>(user_data);
+                const char* visible = gtk_stack_get_visible_child_name(GTK_STACK(d->stack));
+                bool is_ac_view = (std::string(visible) == "ac");
+
+                auto handle = AsusNotification::show_loading(GTK_WIDGET(btn), is_ac_view ? "Setting Charger Mode..." : "Setting Battery Mode...");
                 
-                auto handle = AsusNotification::show_loading(GTK_WIDGET(btn), "Switching Mode...");
-                
-                struct AsyncData { AsusNotification::LoadingHandle* h; CallbackData* d; };
-                AsyncData* ad = new AsyncData{handle, d};
+                struct AsyncData { AsusNotification::LoadingHandle* h; CallbackData* d; bool is_ac; };
+                AsyncData* ad = new AsyncData{handle, d, is_ac_view};
                 
                 g_timeout_add(100, +[](gpointer ptr) -> gboolean {
                     AsyncData* ad = (AsyncData*)ptr;
                     
-                    std::cout << "[AsusPlugin] Requesting mode switch..." << std::endl;
-                    bool success = AsusModes::set_mode(ad->d->mode);
+                    bool success = AsusModes::set_mode_for(ad->d->mode, ad->is_ac);
                     
                     ad->h->close();
                     
                     if (success) {
-                        std::cout << "[AsusPlugin] Mode applied." << std::endl;
-                        AsusNotification::show_toast("Performance Mode Applied");
-                         switch (ad->d->mode) {
-                            case AsusMode::Silent:   adw_action_row_set_subtitle(ADW_ACTION_ROW(ad->d->row), "Silent"); break;
-                            case AsusMode::Balanced: adw_action_row_set_subtitle(ADW_ACTION_ROW(ad->d->row), "Balanced"); break;
-                            case AsusMode::Turbo:    adw_action_row_set_subtitle(ADW_ACTION_ROW(ad->d->row), "Turbo"); break;
-                            default: break;
-                        }
+                        AsusNotification::show_toast(ad->is_ac ? "Charger Mode Updated" : "Battery Mode Updated");
+                        ad->d->update_fn(ad->d->row, ad->d->mode); 
                     } else {
-                        std::cerr << "[AsusPlugin] Failed." << std::endl;
                         AsusNotification::show_toast("Failed to set mode");
                     }
                     delete ad;
@@ -672,11 +684,27 @@ public:
             return btn;
         };
 
-        gtk_box_append(GTK_BOX(box), create_mode_btn("Silent", "emblem-system-symbolic", AsusMode::Silent, "silent-mode"));
-        gtk_box_append(GTK_BOX(box), create_mode_btn("Balanced", "emblem-system-symbolic", AsusMode::Balanced, "balanced-mode"));
-        gtk_box_append(GTK_BOX(box), create_mode_btn("Turbo", "emblem-system-symbolic", AsusMode::Turbo, "turbo-mode"));
+        gtk_box_append(GTK_BOX(buttons_box), create_mode_btn("Silent", "emblem-system-symbolic", AsusMode::Silent, "silent-mode", switcher_stack));
+        gtk_box_append(GTK_BOX(buttons_box), create_mode_btn("Balanced", "emblem-system-symbolic", AsusMode::Balanced, "balanced-mode", switcher_stack));
+        gtk_box_append(GTK_BOX(buttons_box), create_mode_btn("Turbo", "emblem-system-symbolic", AsusMode::Turbo, "turbo-mode", switcher_stack));
 
-        adw_preferences_group_add(ADW_PREFERENCES_GROUP(group), box);
+        adw_preferences_group_add(ADW_PREFERENCES_GROUP(group), switcher);
+        adw_preferences_group_add(ADW_PREFERENCES_GROUP(group), buttons_box);
+        
+        struct InfoData { GtkWidget* row; decltype(update_status_text) update_fn; };
+        InfoData* idata = new InfoData{status_row, update_status_text};
+        
+        g_signal_connect_data(switcher_stack, "notify::visible-child", G_CALLBACK(+[](GObject* obj, GParamSpec*, gpointer data) {
+            InfoData* d = (InfoData*)data;
+            const char* name = gtk_stack_get_visible_child_name(GTK_STACK(obj));
+            bool is_ac = (std::string(name) == "ac");
+            
+            adw_preferences_row_set_title(ADW_PREFERENCES_ROW(d->row), is_ac ? "Current Mode (Charger)" : "Current Mode (Battery)");
+            d->update_fn(d->row, AsusModes::get_saved_mode(is_ac));
+        }), idata, [](gpointer data, GClosure*) { delete static_cast<InfoData*>(data); }, (GConnectFlags)0);
+        
+        adw_preferences_group_add(ADW_PREFERENCES_GROUP(group), switcher_stack); 
+
         return page;
     }
 };

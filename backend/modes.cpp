@@ -16,34 +16,38 @@ namespace AsusModes {
     }
 
 
-    bool set_mode(AsusMode mode) {
+    AsusMode get_saved_mode(bool ac) {
+        std::string key = ac ? "ModeAC" : "ModeBattery";
+        int m = AsusConfig::get_int(ConfigCategory::Power, "Power", key, -1);
+        if (m == -1) m = AsusConfig::get_int(ConfigCategory::Power, "Power", "Mode", 1);
+        return static_cast<AsusMode>(m);
+    }
+
+    bool set_mode_for(AsusMode mode, bool ac) {
         if (mode == AsusMode::Unknown) return false;
-        bool res = SysfsWriter::write(THROTTLE_POLICY_PATH, std::to_string(static_cast<int>(mode)));
-        if (res) {
-             std::string key = AsusBattery::is_on_ac() ? "ModeAC" : "ModeBattery";
-             AsusConfig::set_int(ConfigCategory::Power, "Power", key, static_cast<int>(mode));
+        std::string key = ac ? "ModeAC" : "ModeBattery";
+        AsusConfig::set_int(ConfigCategory::Power, "Power", key, static_cast<int>(mode));
+        
+        if (AsusBattery::is_on_ac() == ac) {
+            return SysfsWriter::write(THROTTLE_POLICY_PATH, std::to_string(static_cast<int>(mode)));
         }
-        return res;
+        return true;
+    }
+
+    bool set_mode(AsusMode mode) {
+        return set_mode_for(mode, AsusBattery::is_on_ac());
     }
 
     void init() {
          last_is_ac = AsusBattery::is_on_ac();
-         std::string key = last_is_ac ? "ModeAC" : "ModeBattery";
-         int m = AsusConfig::get_int(ConfigCategory::Power, "Power", key, -1);
-         if (m == -1) {
-              m = AsusConfig::get_int(ConfigCategory::Power, "Power", "Mode", -1);
-         }
-         
-         if (m != -1) set_mode(static_cast<AsusMode>(m));
+         set_mode(get_saved_mode(last_is_ac));
     }
 
     void update_auto() {
         bool current_is_ac = AsusBattery::is_on_ac();
         if (current_is_ac != last_is_ac) {
             last_is_ac = current_is_ac;
-            std::string key = current_is_ac ? "ModeAC" : "ModeBattery";
-            int m = AsusConfig::get_int(ConfigCategory::Power, "Power", key, -1);
-            if (m != -1) set_mode(static_cast<AsusMode>(m));
+            set_mode(get_saved_mode(current_is_ac));
         }
     }
 
