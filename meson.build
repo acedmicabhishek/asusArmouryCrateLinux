@@ -39,7 +39,7 @@ shared_library('asus_armoury',
   name_prefix: ''
 )
 
-executable('aac',
+executable('AAC',
   [
     'aac.cpp',
     backend_sources,
@@ -47,4 +47,5 @@ executable('aac',
   dependencies: [glib_dep],
   include_directories: inc,
   install: true,
+  install_dir: get_option('bindir'),
 )
