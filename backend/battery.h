@@ -1,5 +1,4 @@
 #pragma once
-#include <string>
 
 namespace AsusBattery {
     bool set_charge_limit(int limit);
