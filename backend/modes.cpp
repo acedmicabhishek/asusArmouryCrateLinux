@@ -33,9 +33,9 @@ namespace AsusModes {
         
         try {
             int v = std::stoi(*val);
-            if (v == 0) return AsusMode::Balanced;
-            if (v == 1) return AsusMode::Turbo;
-            if (v == 2) return AsusMode::Silent;
+            if (v == 0) return AsusMode::Silent;
+            if (v == 1) return AsusMode::Balanced;
+            if (v == 2) return AsusMode::Turbo;
         } catch (...) {}
         
         return AsusMode::Unknown;

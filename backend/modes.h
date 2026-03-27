@@ -1,9 +1,9 @@
 #pragma once
 
 enum class AsusMode {
-    Balanced = 0,
-    Turbo = 1,
-    Silent = 2,
+    Silent = 0,
+    Balanced = 1,
+    Turbo = 2,
     Unknown = -1
 };
 
