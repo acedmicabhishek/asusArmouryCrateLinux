@@ -953,7 +953,7 @@ public:
                                   "AAC CLI Tool");
     adw_action_row_set_subtitle(
         ADW_ACTION_ROW(download_row),
-        "Build and install the standalone tool to /usr/local/AAC.");
+        "Build and install the standalone tool to /usr/local/bin/AAC.");
 
     GtkWidget *download_btn = gtk_button_new_with_label("Install AAC Tool");
     gtk_widget_set_valign(download_btn, GTK_ALIGN_CENTER);
@@ -973,7 +973,7 @@ public:
                                "backend/gpu.cpp backend/gpu_mux.cpp "
                                "backend/keyboard.cpp -I. "
                                "$(pkg-config --cflags --libs glib-2.0) -o "
-                               "/usr/local/AAC\"";
+                               "/usr/local/bin/AAC\"";
 
              int ret = system(cmd.c_str());
 
@@ -989,7 +989,7 @@ public:
               g_idle_add(
                   +[](gpointer) -> gboolean {
                     AsusNotification::show_toast(
-                        "AAC Tool installed to /usr/local/AAC");
+                        "AAC Tool installed to /usr/local/bin/AAC");
                     return G_SOURCE_REMOVE;
                   },
                   NULL);
