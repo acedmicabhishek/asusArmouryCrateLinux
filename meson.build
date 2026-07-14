@@ -19,6 +19,7 @@ backend_sources = [
   'backend/gpu.cpp',
   'backend/gpu_mux.cpp',
   'backend/keyboard.cpp',
+  'backend/keybind.cpp',
 ]
 
 shared_library('asus_armoury',

@@ -3,6 +3,7 @@
 #include "backend/gpu.h"
 #include "backend/gpu_mux.h"
 #include "backend/keyboard.h"
+#include "backend/keybind.h"
 #include "backend/modes.h"
 #include <algorithm>
 #include <iostream>
@@ -19,6 +20,8 @@ static void print_usage() {
             << "  AAC -DB on|off                   Toggle dynamic boost\n"
             << "  AAC -RGB <hex>                   Set keyboard RGB color "
                "(e.g. ff00aa)\n"
+            << "  AAC --keybind-daemon             Run the Fn-key keybind "
+               "listener (foreground)\n"
             << "  AAC --status                     Show current status\n"
             << "  AAC --help                       Show this help\n";
 }
@@ -98,6 +101,11 @@ int main(int argc, char *argv[]) {
   if (flag == "--status" || flag == "-s") {
     show_status();
     return 0;
+  }
+
+  // --keybind-daemon: background Fn-key listener (blocks)
+  if (flag == "--keybind-daemon") {
+    return AsusKeybind::run_daemon();
   }
 
   if (argc < 3) {

@@ -7,6 +7,7 @@
 #include "backend/gpu.h"
 #include "backend/gpu_mux.h"
 #include "backend/keyboard.h"
+#include "backend/keybind.h"
 #include "backend/modes.h"
 #include "backend/monitor.h"
 #include "backend/stress.h"
@@ -1071,7 +1072,97 @@ public:
     fdata->install_btn = download_btn;
     fdata->install_row = download_row;
 
+    build_keybind_group(page);
+
     return page;
+  }
+
+private:
+  static void build_keybind_group(GtkWidget *page) {
+    if (!AsusKeybind::is_supported())
+      return;
+
+    GtkWidget *kb_group = adw_preferences_group_new();
+    adw_preferences_group_set_title(ADW_PREFERENCES_GROUP(kb_group), "Keybinds");
+    adw_preferences_group_set_description(
+        ADW_PREFERENCES_GROUP(kb_group),
+        "Bind Fn keys to backlight, RGB and performance controls");
+    adw_preferences_page_add(ADW_PREFERENCES_PAGE(page),
+                             ADW_PREFERENCES_GROUP(kb_group));
+
+    GtkWidget *kb_switch = adw_switch_row_new();
+    adw_preferences_row_set_title(ADW_PREFERENCES_ROW(kb_switch),
+                                  "Enable Keybind Daemon");
+    adw_action_row_set_subtitle(ADW_ACTION_ROW(kb_switch),
+                                "Listen for bound keys in the background (systemd)");
+    adw_switch_row_set_active(ADW_SWITCH_ROW(kb_switch),
+                              AsusKeybind::service_is_enabled());
+    g_signal_connect(
+        kb_switch, "notify::active",
+        G_CALLBACK(+[](GObject *o, GParamSpec *, gpointer) {
+          bool want = adw_switch_row_get_active(ADW_SWITCH_ROW(o));
+          bool ok = want ? AsusKeybind::service_enable()
+                         : AsusKeybind::service_disable();
+          bool actual = AsusKeybind::service_is_enabled();
+          if (!ok && actual != want)
+            adw_switch_row_set_active(ADW_SWITCH_ROW(o), actual);
+        }),
+        NULL);
+    adw_preferences_group_add(ADW_PREFERENCES_GROUP(kb_group), kb_switch);
+
+    const AsusKeybind::Action actions[] = {
+        AsusKeybind::Action::BacklightUp, AsusKeybind::Action::BacklightDown,
+        AsusKeybind::Action::RgbCycle, AsusKeybind::Action::PerfCycle};
+
+    for (auto a : actions) {
+      GtkWidget *row = adw_action_row_new();
+      adw_preferences_row_set_title(ADW_PREFERENCES_ROW(row),
+                                    AsusKeybind::action_label(a));
+      int code = AsusKeybind::get_binding(a);
+      std::string sub =
+          (code >= 0) ? "Key code: " + std::to_string(code) : "Not set";
+      adw_action_row_set_subtitle(ADW_ACTION_ROW(row), sub.c_str());
+
+      GtkWidget *set_btn = gtk_button_new_with_label("Set");
+      gtk_widget_set_valign(set_btn, GTK_ALIGN_CENTER);
+      g_object_set_data(G_OBJECT(set_btn), "action", GINT_TO_POINTER((int)a));
+      g_object_set_data(G_OBJECT(set_btn), "row", row);
+
+      g_signal_connect(
+          set_btn, "clicked", G_CALLBACK(+[](GtkButton *b, gpointer) {
+            auto a = (AsusKeybind::Action)GPOINTER_TO_INT(
+                g_object_get_data(G_OBJECT(b), "action"));
+            GtkWidget *row = (GtkWidget *)g_object_get_data(G_OBJECT(b), "row");
+
+            AdwDialog *dlg = adw_alert_dialog_new(
+                "Press a Key",
+                "Press the key or Fn-combo to bind for this action.");
+            adw_alert_dialog_add_response(ADW_ALERT_DIALOG(dlg), "cancel",
+                                          "Cancel");
+            g_signal_connect(dlg, "response",
+                             G_CALLBACK(+[](AdwAlertDialog *, const char *,
+                                            gpointer) {
+                               AsusKeybind::cancel_capture();
+                             }),
+                             NULL);
+            adw_dialog_present(ADW_DIALOG(dlg),
+                               GTK_WIDGET(gtk_widget_get_root(GTK_WIDGET(b))));
+
+            AsusKeybind::begin_capture([row, a, dlg](int code) {
+              if (code >= 0) {
+                AsusKeybind::set_binding(a, code);
+                std::string sub = "Key code: " + std::to_string(code);
+                adw_action_row_set_subtitle(ADW_ACTION_ROW(row), sub.c_str());
+                AsusKeybind::service_reload();
+              }
+              adw_dialog_force_close(ADW_DIALOG(dlg));
+            });
+          }),
+          NULL);
+
+      adw_action_row_add_suffix(ADW_ACTION_ROW(row), set_btn);
+      adw_preferences_group_add(ADW_PREFERENCES_GROUP(kb_group), row);
+    }
   }
 };
 
